@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sig</title>
+  <%= stylesheet_link_tag    'application', media: 'all', 'data-turbolinks-track' => true %>
+  <%= javascript_include_tag 'application', 'data-turbolinks-track' => true %>
+  <%= stylesheet_link_tag    'http://js.arcgis.com/3.14/esri/css/esri.css' %>
+  <%= javascript_include_tag 'http://js.arcgis.com/3.14/' %>
+  <%= csrf_meta_tags %>
+</head>
+<body class='claro'>
+
+<%= yield %>
+
+</body>
+</html>
