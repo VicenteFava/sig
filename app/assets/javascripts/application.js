@@ -17,29 +17,28 @@
 
 $(document).ready(function(){
   
-require([
-        "esri/urlUtils",
-        "esri/map",
-        "esri/graphic",            
-        "esri/tasks/RouteTask",            
-        "esri/tasks/RouteParameters",
+require([ "esri/urlUtils",
+          "esri/map",
+          "esri/graphic",            
+          "esri/tasks/RouteTask",            
+          "esri/tasks/RouteParameters",
 
-        "esri/tasks/FeatureSet",            
-        "esri/symbols/SimpleMarkerSymbol",
-        "esri/symbols/SimpleLineSymbol",          
+          "esri/tasks/FeatureSet",            
+          "esri/symbols/SimpleMarkerSymbol",
+          "esri/symbols/SimpleLineSymbol",          
 
-        "esri/Color",
-        "dojo/on",
-        "dijit/registry",
+          "esri/Color",
+          "dojo/on",
+          "dijit/registry",
 
-        "dijit/layout/BorderContainer",
-        "dijit/layout/ContentPane",
-        "dijit/form/HorizontalSlider",
-        "dijit/form/HorizontalRuleLabels"
-      ], function (
-        urlUtils, Map, Graphic, RouteTask, RouteParameters,
-        FeatureSet, SimpleMarkerSymbol, SimpleLineSymbol,           
-        Color, on, registry
+          "dijit/layout/BorderContainer",
+          "dijit/layout/ContentPane",
+          "dijit/form/HorizontalSlider",
+          "dijit/form/HorizontalRuleLabels"
+
+      ], function ( urlUtils, Map, Graphic, RouteTask, RouteParameters,
+                    FeatureSet, SimpleMarkerSymbol, SimpleLineSymbol,           
+                    Color, on, registry
       ) {
         var map, routeTask, routeParams;
         var stopSymbol, routeSymbol, lastStop;
