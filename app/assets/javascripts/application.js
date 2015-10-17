@@ -17,43 +17,88 @@
 
 $(document).ready(function(){
   
-  // var map;
-  // require(["esri/map", "dojo/domReady!"], function(Map) {
-  //   map = new Map("mapDiv", {
-  //     center: [-56.049, 38.485],
-  //     zoom: 3,
-  //     basemap: "streets"
-  //   });
-  // });
+require([
+        "esri/urlUtils",
+        "esri/map",
+        "esri/graphic",            
+        "esri/tasks/RouteTask",            
+        "esri/tasks/RouteParameters",
 
+        "esri/tasks/FeatureSet",            
+        "esri/symbols/SimpleMarkerSymbol",
+        "esri/symbols/SimpleLineSymbol",          
 
-  require([
+        "esri/Color",
+        "dojo/on",
+        "dijit/registry",
 
-    "esri/map",
-    "esri/dijit/Search",
-    "dojo/domReady!"
+        "dijit/layout/BorderContainer",
+        "dijit/layout/ContentPane",
+        "dijit/form/HorizontalSlider",
+        "dijit/form/HorizontalRuleLabels"
+      ], function (
+        urlUtils, Map, Graphic, RouteTask, RouteParameters,
+        FeatureSet, SimpleMarkerSymbol, SimpleLineSymbol,           
+        Color, on, registry
+      ) {
+        var map, routeTask, routeParams;
+        var stopSymbol, routeSymbol, lastStop;
 
-  ], function (Map, Search) {
-    
-    var map = new Map("mapDiv", {
-      center: [-56.049, 38.485],
-      zoom: 3,
-      basemap: "streets"
-    });
+        urlUtils.addProxyRule({
+          urlPrefix: "route.arcgis.com",  
+          proxyUrl: "http://localhost:3000/proxy"
+        });
+        
+        map = new Map("mapDiv", {
+            basemap : "streets",
+            center : [-117.195, 34.057],
+            zoom : 14
+          });
 
-    var s = new Search({
-      map: map
-    }, "search");
-    s.startup();
+        map.on("click", addStop);         
 
-    s.on('select-result', function(e) {
-      ob = e;
-      x = (e['result']['extent']['xmin'] + e['result']['extent']['xmax']) / 2
-      y = (e['result']['extent']['ymin'] + e['result']['extent']['ymax']) / 2
-      alert([x, y]);
-    });
+        routeTask = new RouteTask("http://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World");
 
-  });
+        //setup the route parameters
+        routeParams = new RouteParameters();
+        routeParams.stops = new FeatureSet();
+        routeParams.outSpatialReference = {
+          "wkid" : 102100
+        };
+
+        routeTask.on("solve-complete", showRoute);
+        routeTask.on("error", errorHandler);              
+
+        //define the symbology used to display the route
+        stopSymbol = new SimpleMarkerSymbol().setStyle(SimpleMarkerSymbol.STYLE_CROSS).setSize(15);
+        stopSymbol.outline.setWidth(4);
+        routeSymbol = new SimpleLineSymbol().setColor(new dojo.Color([0, 0, 255, 0.5])).setWidth(5);
+
+        //Adds a graphic when the user clicks the map. If 2 or more points exist, route is solved.
+        function addStop(evt) {
+          var stop = map.graphics.add(new Graphic(evt.mapPoint, stopSymbol));
+          routeParams.stops.features.push(stop);
+
+          if (routeParams.stops.features.length >= 2) {
+            routeTask.solve(routeParams);
+            lastStop = routeParams.stops.features.splice(0, 1)[0];
+          }
+        }
+
+        //Adds the solved route to the map as a graphic
+        function showRoute(evt) {
+          map.graphics.add(evt.result.routeResults[0].route.setSymbol(routeSymbol));
+        }
+
+        //Displays any error returned by the Route Task
+        function errorHandler(err) {
+          alert("An error occured\n" + err.message + "\n" + err.details.join("\n"));
+
+          routeParams.stops.features.splice(0, 0, lastStop);
+          map.graphics.remove(routeParams.stops.features.splice(1, 1)[0]);
+        }
+
+       });
 
 
 });
