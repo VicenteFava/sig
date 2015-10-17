@@ -12,10 +12,10 @@ class Token < ActiveRecord::Base
 
   def self.new_token
     getToken = Net::HTTP.post_form URI('https://www.arcgis.com/sharing/rest/oauth2/token'),
-      f: 'json',
-      client_id: 'yNhxJyA1OmmYpQCy',
-      client_secret: 'f01e6759e387408ab705bb035e30bcb6',
-      grant_type: 'client_credentials'
+      f:              'json',
+      client_id:      ENV['CLIENT_ID'],
+      client_secret:  ENV['CLIENT_SECRET'],
+      grant_type:     'client_credentials'
 
     Token.create(value: JSON.parse(getToken.body)['access_token'])
   end
