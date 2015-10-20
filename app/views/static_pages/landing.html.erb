@@ -1,4 +1,21 @@
-<div class="header">
-  <div id="search"></div>
+<div class="container-fluid">
+  <div class="row header">
+    <div class="col-xs-7 col-md-3 map-input-div">
+      <%= text_field_tag "location", nil,  class: "map-input", placeholder: "Location" %>
+    </div>  
+    <div class="col-xs-5 col-md-2 map-input-div">
+      <%= button_tag "Search", class: "btn btn-primary map-button" %>
+    </div>
+    <div class="col-xs-5 col-md-2 map-input-div">
+      <%= button_tag "Route", class: "btn btn-primary route-button" %>
+    </div>  
+  </div>
 </div>
-<div id="mapDiv"></div>
+<div class="content">
+  <div class="container-fluid full-height">
+    <div class="row full-height">
+      <div class="col-md-12 full-height full-width" id="map-div"></div>
+    </div>
+  </div>
+</div>
+

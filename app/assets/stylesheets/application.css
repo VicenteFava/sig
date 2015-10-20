@@ -10,8 +10,8 @@
  * defined in the other CSS/SCSS files in this directory. It is generally better to create a new
  * file per style scope.
  *
- *= require_tree .
- *= require_self
+ *= require-tree .
+ *= require-self
  */
 
 /*html, body, #mapDiv {
@@ -20,18 +20,58 @@
   height: 100%;
 }*/
 
-.claro {
+/*.claro {
   height: 95vh;
+}*/
+
+html, body {
+  height: 100%;
 }
 
 .header {
-  height: 10%;
+  height: 60px;
 }
 
-#mapDiv {
-  height: 90%;
+.content {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 5px;
 }
 
-#search {
+.full-height {
+  height: 100%;
+}
 
+.full-width {
+  padding: 0 !important; 
+}
+
+.map-input {
+  width: 100%;
+  min-height: 40px;
+  padding-left: 8px;
+  border: solid 3px #337ab7;
+  transition: border 0.3s;
+}
+
+.map-input:focus {
+  border: solid 3px #286090;
+  outline:0;
+}
+
+.map-button, .route-button {
+  width: 100%;
+  min-height: 38px;
+}
+
+.map-button:focus, .route-button:focus {
+  outline:0;
+}
+
+.map-input-div {
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
 }
