@@ -1,21 +1,27 @@
 <div class="container-fluid">
   <div class="row header">
-    <div class="col-xs-7 col-md-3 map-input-div">
+    <div class="col-md-4 col-xs-8 map-input-div">
       <%= text_field_tag "location", nil,  class: "map-input", placeholder: "Location" %>
     </div>  
-    <div class="col-xs-5 col-md-2 map-input-div">
-      <%= button_tag "Search", class: "btn btn-primary map-button" %>
+    <div class="col-md-2 col-xs-4 map-button-div">
+      <%= button_tag "Search", class: "btn btn-primary map-button", id: "search-button" %>
     </div>
-    <div class="col-xs-5 col-md-2 map-input-div">
-      <%= button_tag "Route", class: "btn btn-primary route-button" %>
+    <div class="col-md-2 col-xs-4 map-button-div">
+      <%= button_tag "Route", class: "btn btn-primary map-button", id: "route-button" %>
     </div>  
   </div>
-</div>
-<div class="content">
-  <div class="container-fluid full-height">
-    <div class="row full-height">
-      <div class="col-md-12 full-height full-width" id="map-div"></div>
+  <div class="row">
+    <div class="col-md-8 map-conteiner" id="map-div"></div>
+    <div class="col-md-4">
+      <div class="packery">
+        <% 10.times do |index| %>
+          <div class="item">
+            <%= text_field_tag "item", nil,  class: "item-input", placeholder: "Place", :readonly => true, data: { index: index } %>
+        </div>
+      <% end %>
+    </div>
+    <div class="col-md-4 col-md-offset-8 clear-button-div">
+      <%= button_tag "Clear", class: "btn btn-primary map-button", id: "clear-button" %>
     </div>
   </div>
 </div>
-
