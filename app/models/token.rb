@@ -8,6 +8,10 @@ class Token < ActiveRecord::Base
     token.present? && token.created_at > 1.day.ago ? token.value : new_token.value
   end
 
+  def self.get_token_always
+    new_token.value
+  end
+
   private
 
   def self.new_token
