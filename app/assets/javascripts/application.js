@@ -17,6 +17,31 @@
 
 $(document).ready(function(){
 
+  var opts = {
+      lines: 13 // The number of lines to draw
+    , length: 28 // The length of each line
+    , width: 14 // The line thickness
+    , radius: 42 // The radius of the inner circle
+    , scale: 0.5 // Scales overall size of the spinner
+    , corners: 1 // Corner roundness (0..1)
+    , color: '#337ab7' // #rgb or #rrggbb or array of colors
+    , opacity: 0.25 // Opacity of the lines
+    , rotate: 0 // The rotation offset
+    , direction: 1 // 1: clockwise, -1: counterclockwise
+    , speed: 1 // Rounds per second
+    , trail: 60 // Afterglow percentage
+    , fps: 20 // Frames per second when using setTimeout() as a fallback for CSS
+    , zIndex: 2e9 // The z-index (defaults to 2000000000)
+    , className: 'spinner' // The CSS class to assign to the spinner
+    , top: '50%' // Top position relative to parent
+    , left: '50%' // Left position relative to parent
+    , shadow: false // Whether to render a shadow
+    , hwaccel: false // Whether to use hardware acceleration
+    , position: 'absolute' // Element positioning
+  }
+  var target = document.getElementsByClassName('overlay')[0];
+  var spinner = new Spinner(opts).spin(target);
+
   window.places = [];
 
   require([ "esri/urlUtils", 
@@ -35,23 +60,26 @@ $(document).ready(function(){
       "esri/geometry/Extent",
       "esri/geometry/webMercatorUtils",
       "dojo/_base/array",
+      "esri/symbols/CartographicLineSymbol",
       "esri/Color",
+      "esri/geometry/Polyline",
       "dojo/number",
       "dojo/parser",
       "dojo/dom",
       "dojo/json",
       "dijit/registry",
-      "dijit/form/Button",
-      "dijit/form/Textarea",
-      "dijit/layout/BorderContainer",
-      "dijit/layout/ContentPane",
-      "dojo/domReady!"
+      // "dijit/form/Button",
+      // "dijit/form/Textarea",
+      // "dijit/layout/BorderContainer",
+      // "dijit/layout/ContentPane",
+      // "dojo/domReady!",
+      "esri/layers/GraphicsLayer"
     ], function( urlUtils,
       Map, RouteTask, RouteParameters, FeatureSet, Locator, 
       SpatialReference, Graphic, SimpleLineSymbol,
       SimpleMarkerSymbol, Font, TextSymbol, Point, Extent,
-      webMercatorUtils, arrayUtils, Color, number, parser,
-      dom, JSON, registry
+      webMercatorUtils, arrayUtils, CartographicLineSymbol, Color, Polyline, number, parser,
+      dom, JSON, registry, GraphicsLayer
     ) 
   {
 
@@ -59,6 +87,8 @@ $(document).ready(function(){
     //   urlPrefix: "route.arcgis.com",  
     //   proxyUrl: "http://localhost:3000/proxy"
     // });
+
+    var lastRoute;
     
     var map = new Map("map-div", {
         basemap : "streets",
@@ -66,6 +96,12 @@ $(document).ready(function(){
         zoom : 4
       });       
     
+    var pointsLayer = new GraphicsLayer();
+    var routesLayer = new GraphicsLayer();
+
+    map.addLayer(pointsLayer);
+    map.addLayer(routesLayer);
+
     var routeTask = new RouteTask("http://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World");
     var locator = new Locator("http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer");
 
@@ -76,7 +112,8 @@ $(document).ready(function(){
 
     // //Adds the solved route to the map as a graphic
     function showRoute(evt) {
-      map.graphics.add(evt.result.routeResults[0].route.setSymbol(routeSymbol));
+      lastRoute = evt.result.routeResults[0].route;
+      routesLayer.add(lastRoute.setSymbol(routeSymbol));
     };
 
     // //Displays any error returned by the Route Task
@@ -126,8 +163,6 @@ $(document).ready(function(){
 
             dataIndex = input.attr('data-index');
             window.places[dataIndex] = new esri.Graphic(point, stopSymbol);
-
-            //routeParams.stops.features.push(new esri.Graphic(point, stopSymbol));
             showLocation(point);
 
             return false;
@@ -153,9 +188,8 @@ $(document).ready(function(){
           SimpleLineSymbol.STYLE_SOLID, 
           new Color([r, g, b, 0.5]), 
           10
-        ), new Color([r, g, b, 0.9]));
-
-      map.graphics.add(new Graphic(point, symbol));
+      ), new Color([r, g, b, 0.9]));
+      pointsLayer.add(new Graphic(point, symbol));
     };
   
     // Route action
@@ -195,10 +229,57 @@ $(document).ready(function(){
       $(".item").each(function(){
         $(':input', $(this)).val('');
       })
-      map.graphics.clear();
+      pointsLayer.clear();
+      routesLayer.clear();
       window.places = [];
     });
 
+    // Save route action
+    $("#save-route-button").click(function saveRoute() {
+      if (lastRoute != null) {
+        if ($("#route_name").val() != '') {
+          array = [];
+          array[0] = lastRoute;
+          attributes = lastRoute.attributes;
+          attributes['notes'] = 'grupo10' + $("#route_name").val();
+          $.post("http://sampleserver5.arcgisonline.com/arcgis/rest/services/LocalGovernment/Recreation/FeatureServer/1/addFeatures", {
+            features: '[{"geometry":{"paths":' + JSON.stringify(lastRoute.geometry.paths) + ',"spatialReference":' + JSON.stringify(lastRoute.geometry.spatialReference) + '},"attributes":' + JSON.stringify(attributes) + '}]',
+            f : "json"
+          }, function(){
+            $("#route_name").val('');
+            alert("Route successfully saved");
+          })
+        }
+        else {
+          alert("No name for the route");
+        }
+      }
+      else {
+        alert("No route");
+      }
+    });
+
+    // Get route action
+    $("#get-route-button").click(function saveRoute() {
+      if ($("#route_name").val() != '') {
+        $.get("http://sampleserver5.arcgisonline.com/arcgis/rest/services/LocalGovernment/Recreation/FeatureServer/1/query", {
+          where : "notes = 'grupo10" + $("#route_name").val() + "'",
+          f: "json"
+        },
+        function(data,status){
+          var obj = JSON.parse(data);
+          if (obj.features.length > 0) {
+            var polyline = new Polyline(obj.features[0].geometry);
+            routesLayer.add(new Graphic(polyline, routeSymbol));
+          }
+        })
+      }
+      else {
+        alert("No name for the route");
+      }
+    });
+
+    $(".overlay").hide();
   });
   
   // drag places
