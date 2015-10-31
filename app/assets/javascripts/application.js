@@ -110,12 +110,6 @@ $(document).ready(function(){
 
     var routeSymbol = new SimpleLineSymbol().setColor(new dojo.Color([0, 0, 255, 0.5])).setWidth(5);
 
-    // //Adds the solved route to the map as a graphic
-    function showRoute(evt) {
-      lastRoute = evt.result.routeResults[0].route;
-      routesLayer.add(lastRoute.setSymbol(routeSymbol));
-    };
-
     // //Displays any error returned by the Route Task
     function errorHandler(err) {
       alert("An error occured");
@@ -194,6 +188,7 @@ $(document).ready(function(){
   
     // Route action
     $("#route-button").click(function route() {
+      $(".overlay").show();
       orderedArray = [];
 
       $(".item").each(function(){
@@ -208,6 +203,13 @@ $(document).ready(function(){
 
       solveRoute(orderedArray);
     });
+
+    // Adds the solved route to the map as a graphic
+    function showRoute(evt) {
+      lastRoute = evt.result.routeResults[0].route;
+      routesLayer.add(lastRoute.setSymbol(routeSymbol));
+      $(".overlay").hide();
+    };
 
     function solveRoute(orderedArray) {
       // Setup the route parameters
@@ -232,21 +234,25 @@ $(document).ready(function(){
       pointsLayer.clear();
       routesLayer.clear();
       window.places = [];
+      lastRoute = null;
     });
 
     // Save route action
     $("#save-route-button").click(function saveRoute() {
       if (lastRoute != null) {
-        if ($("#route_name").val() != '') {
+        var routeName = $("#route_name").val();
+        $("#route_name").val('');
+        if (routeName != '') {
+          $(".overlay").show();
           array = [];
           array[0] = lastRoute;
           attributes = lastRoute.attributes;
-          attributes['notes'] = 'grupo10' + $("#route_name").val();
+          attributes['notes'] = 'grupo10' + routeName;
           $.post("http://sampleserver5.arcgisonline.com/arcgis/rest/services/LocalGovernment/Recreation/FeatureServer/1/addFeatures", {
             features: '[{"geometry":{"paths":' + JSON.stringify(lastRoute.geometry.paths) + ',"spatialReference":' + JSON.stringify(lastRoute.geometry.spatialReference) + '},"attributes":' + JSON.stringify(attributes) + '}]',
             f : "json"
           }, function(){
-            $("#route_name").val('');
+            $(".overlay").hide();
             alert("Route successfully saved");
           })
         }
@@ -261,9 +267,12 @@ $(document).ready(function(){
 
     // Get route action
     $("#get-route-button").click(function saveRoute() {
-      if ($("#route_name").val() != '') {
+      var routeName = $("#route_name").val();
+      $("#route_name").val('');
+      if (routeName != '') {
+        $(".overlay").show();
         $.get("http://sampleserver5.arcgisonline.com/arcgis/rest/services/LocalGovernment/Recreation/FeatureServer/1/query", {
-          where : "notes = 'grupo10" + $("#route_name").val() + "'",
+          where : "notes = 'grupo10" + routeName + "'",
           f: "json"
         },
         function(data,status){
@@ -271,6 +280,11 @@ $(document).ready(function(){
           if (obj.features.length > 0) {
             var polyline = new Polyline(obj.features[0].geometry);
             routesLayer.add(new Graphic(polyline, routeSymbol));
+            $(".overlay").hide();
+          }
+          else {
+            $(".overlay").hide();
+            alert("Route not found");
           }
         })
       }
