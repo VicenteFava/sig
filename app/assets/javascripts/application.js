@@ -24,7 +24,7 @@ $(document).ready(function(){
     , radius: 42 // The radius of the inner circle
     , scale: 0.5 // Scales overall size of the spinner
     , corners: 1 // Corner roundness (0..1)
-    , color: '#337ab7' // #rgb or #rrggbb or array of colors
+    , color: '#074B86' // #rgb or #rrggbb or array of colors
     , opacity: 0.25 // Opacity of the lines
     , rotate: 0 // The rotation offset
     , direction: 1 // 1: clockwise, -1: counterclockwise
@@ -41,8 +41,6 @@ $(document).ready(function(){
   }
   var target = document.getElementsByClassName('overlay')[0];
   var spinner = new Spinner(opts).spin(target);
-
-  window.places = [];
 
   require([ "esri/urlUtils", 
       "esri/map",
@@ -88,13 +86,19 @@ $(document).ready(function(){
     //   proxyUrl: "http://localhost:3000/proxy"
     // });
 
+    var token;
     var lastRoute;
+
+    var places = [];
+    var placesCount = 0;
     
     var map = new Map("map-div", {
         basemap : "streets",
-        center : [-117.195, 34.057],
+        center : [-98.56,39.82],
         zoom : 4
-      });       
+      });   
+
+    getToken();    
     
     var pointsLayer = new GraphicsLayer();
     var routesLayer = new GraphicsLayer();
@@ -102,38 +106,44 @@ $(document).ready(function(){
     map.addLayer(pointsLayer);
     map.addLayer(routesLayer);
 
-    var routeTask = new RouteTask("http://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World");
-    var locator = new Locator("http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer");
-
-    routeTask.on("solve-complete", showRoute);
-    routeTask.on("error", errorHandler);    
+    var locator = new Locator("http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer");  
 
     var routeSymbol = new SimpleLineSymbol().setColor(new dojo.Color([0, 0, 255, 0.5])).setWidth(5);
 
-    // //Adds the solved route to the map as a graphic
-    function showRoute(evt) {
-      lastRoute = evt.result.routeResults[0].route;
-      routesLayer.add(lastRoute.setSymbol(routeSymbol));
-    };
-
-    // //Displays any error returned by the Route Task
-    function errorHandler(err) {
-      alert("An error occured");
-    };
+    // Get token
+    function getToken() {
+      $.post("https://www.arcgis.com/sharing/rest/oauth2/token", {
+        f:              'json',
+        client_id:      'yNhxJyA1OmmYpQCy',
+        client_secret:  'f01e6759e387408ab705bb035e30bcb6',
+        grant_type:     'client_credentials'
+      }, function(data) {
+        var response = JSON.parse(data);
+        token = response['access_token'];
+        if (token == null) {
+          alert('Error getting token');
+        }
+      }
+    )};
 
     // Search action
     $("#search-button").click(function locate() {
       if ($("#location").val() != '') {
-        var address = {
-          SingleLine: $("#location").val()
-        };
-        var options = {
-          address: address,
-          countryCode : "USA",
-          outFields: ["*"]
-        };
-        //optionally return the out fields if you need to calculate the extent of the geocoded point
-        locator.addressToLocations(options);
+        if (placesCount < 10) {
+          var address = {
+            SingleLine: $("#location").val()
+          };
+          var options = {
+            address: address,
+            countryCode : "USA",
+            outFields: ["*"]
+          };
+          //optionally return the out fields if you need to calculate the extent of the geocoded point
+          locator.addressToLocations(options);
+        }
+        else {
+          alert("You already have 10 places");
+        }
         $("#location").val('');
       }
     });
@@ -162,7 +172,8 @@ $(document).ready(function(){
             input.val(result.address);
 
             dataIndex = input.attr('data-index');
-            window.places[dataIndex] = new esri.Graphic(point, stopSymbol);
+            places[dataIndex] = new esri.Graphic(point, stopSymbol);
+            placesCount = placesCount + 1;
             showLocation(point);
 
             return false;
@@ -194,34 +205,52 @@ $(document).ready(function(){
   
     // Route action
     $("#route-button").click(function route() {
-      orderedArray = [];
+      if (placesCount > 1) {
+        $(".overlay").show();
+        orderedArray = [];
 
-      $(".item").each(function(){
-        input = $(':input', $(this));
+        $(".item").each(function(){
+          input = $(':input', $(this));
 
-        if (input.val() != '') {
-          index = ($(this).position().top)/50;
-          data = input.attr('data-index');
-          orderedArray[index] = window.places[data];
-        }
-      });
+          if (input.val() != '') {
+            index = ($(this).position().top)/50;
+            data = input.attr('data-index');
+            orderedArray[index] = places[data];
+          }
+        });
 
-      solveRoute(orderedArray);
+        solveRoute(orderedArray);    
+      }
+      else {
+        alert("You have to slelect at least 2 places");
+      }
+  
     });
 
     function solveRoute(orderedArray) {
-      // Setup the route parameters
-      var routeParams = new RouteParameters();
-      routeParams.stops = new FeatureSet();
-      routeParams.outSpatialReference = {
-        "wkid" : 102100
-      };
-
+      var stops = '';
       for (var index in orderedArray){
-        routeParams.stops.features.push(orderedArray[index]);   
+        stops = stops + orderedArray[index].geometry.x + ',' + orderedArray[index].geometry.y + ';'; 
       }
 
-      routeTask.solve(routeParams);
+      $.get("http://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World/solve", {
+        token: token,
+        stops: stops,
+        f: "json"
+      },
+      function(data){
+        var response = JSON.parse(data);
+        if (response.error == null) {
+          // Adds the solved route to the map as a graphic
+          lastRoute = response.routes.features[0];
+          var polyline = new Polyline(lastRoute.geometry);
+          routesLayer.add(new Graphic(polyline, routeSymbol));
+        }
+        else {
+          alert("Error generating route");
+        }
+        $(".overlay").hide();
+      });
     };
 
     // Clear action
@@ -231,23 +260,32 @@ $(document).ready(function(){
       })
       pointsLayer.clear();
       routesLayer.clear();
-      window.places = [];
+      places = [];
+      placesCount = 0;
+      lastRoute = null;
     });
 
     // Save route action
     $("#save-route-button").click(function saveRoute() {
       if (lastRoute != null) {
-        if ($("#route_name").val() != '') {
-          array = [];
-          array[0] = lastRoute;
+        var routeName = $("#route_name").val();
+        $("#route_name").val('');
+        if (routeName != '') {
+          $(".overlay").show();
           attributes = lastRoute.attributes;
-          attributes['notes'] = 'grupo10' + $("#route_name").val();
+          attributes['notes'] = 'grupo10' + routeName;
           $.post("http://sampleserver5.arcgisonline.com/arcgis/rest/services/LocalGovernment/Recreation/FeatureServer/1/addFeatures", {
-            features: '[{"geometry":{"paths":' + JSON.stringify(lastRoute.geometry.paths) + ',"spatialReference":' + JSON.stringify(lastRoute.geometry.spatialReference) + '},"attributes":' + JSON.stringify(attributes) + '}]',
+            features: '[{"geometry":{"paths":' + JSON.stringify(lastRoute.geometry.paths) + '},"attributes":' + JSON.stringify(attributes) + '}]',
             f : "json"
-          }, function(){
-            $("#route_name").val('');
-            alert("Route successfully saved");
+          }, function(data){
+            response = JSON.parse(data);
+            $(".overlay").hide();
+            if (response.error == null) {
+              alert("Route successfully saved");
+            }
+            else {
+              alert("Error saving route");
+            }
           })
         }
         else {
@@ -261,16 +299,24 @@ $(document).ready(function(){
 
     // Get route action
     $("#get-route-button").click(function saveRoute() {
-      if ($("#route_name").val() != '') {
+      var routeName = $("#route_name").val();
+      $("#route_name").val('');
+      if (routeName != '') {
+        $(".overlay").show();
         $.get("http://sampleserver5.arcgisonline.com/arcgis/rest/services/LocalGovernment/Recreation/FeatureServer/1/query", {
-          where : "notes = 'grupo10" + $("#route_name").val() + "'",
+          where : "notes = 'grupo10" + routeName + "'",
           f: "json"
         },
-        function(data,status){
-          var obj = JSON.parse(data);
-          if (obj.features.length > 0) {
-            var polyline = new Polyline(obj.features[0].geometry);
+        function(data){
+          var response = JSON.parse(data);
+          if (response.features.length > 0) {
+            var polyline = new Polyline(response.features[0].geometry);
             routesLayer.add(new Graphic(polyline, routeSymbol));
+            $(".overlay").hide();
+          }
+          else {
+            $(".overlay").hide();
+            alert("Route not found");
           }
         })
       }
@@ -281,7 +327,7 @@ $(document).ready(function(){
 
     $(".overlay").hide();
   });
-  
+    
   // drag places
   var container = document.querySelector('.packery');
   var pckry = new Packery( container, {
