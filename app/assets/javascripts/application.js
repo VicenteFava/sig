@@ -48,7 +48,6 @@ $(document).ready(function(){
       "esri/tasks/RouteParameters",
       "esri/tasks/FeatureSet", 
       "esri/tasks/locator", 
-      "esri/SpatialReference",
       "esri/graphic",
       "esri/symbols/SimpleLineSymbol",
       "esri/symbols/SimpleMarkerSymbol",
@@ -69,19 +68,16 @@ $(document).ready(function(){
       "dojo/dom",
       "dojo/json",
       "dijit/registry",
-      // "dijit/form/Button",
-      // "dijit/form/Textarea",
-      // "dijit/layout/BorderContainer",
-      // "dijit/layout/ContentPane",
-      // "dojo/domReady!",
-      "esri/layers/GraphicsLayer"
+      "esri/layers/GraphicsLayer",
+      "esri/geometry/geodesicUtils"
     ], function( urlUtils,
       Map, RouteTask, RouteParameters, FeatureSet, Locator, 
-      SpatialReference, Graphic, SimpleLineSymbol,
-      SimpleMarkerSymbol, PictureMarkerSymbol, Circle, SimpleFillSymbol,
+      Graphic, SimpleLineSymbol, SimpleMarkerSymbol, 
+      PictureMarkerSymbol, Circle, SimpleFillSymbol,
       Font, TextSymbol, Point, Extent,
-      webMercatorUtils, arrayUtils, CartographicLineSymbol, Color, Polyline, number, parser,
-      dom, JSON, registry, GraphicsLayer
+      webMercatorUtils, arrayUtils, CartographicLineSymbol,
+      Color, Polyline, number, parser,
+      dom, JSON, registry, GraphicsLayer, geodesicUtils
     ) 
   {
 
@@ -92,6 +88,7 @@ $(document).ready(function(){
 
     var token;
     var lastRoute;
+    var lastPolyline;
 
     var places = [];
     var placesCount = 0;
@@ -106,13 +103,25 @@ $(document).ready(function(){
     
     var pointsLayer = new GraphicsLayer();
     var routesLayer = new GraphicsLayer();
+    var carLayer = new GraphicsLayer();
+
 
     map.addLayer(pointsLayer);
     map.addLayer(routesLayer);
+    map.addLayer(carLayer);
 
     var locator = new Locator("http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer");  
 
     var routeSymbol = new SimpleLineSymbol().setColor(new dojo.Color([0, 0, 255, 0.5])).setWidth(5);
+
+    var speedValue = 1;
+    var imageHigh = "http://i.imgur.com/c6fuPJp.png";
+    var imageMedium = "http://i.imgur.com/UJoED65.png";
+    var imageLow = "http://i.imgur.com/JVVvX3T.png";
+
+    var autoMarkerSymbolHigh = new PictureMarkerSymbol(imageHigh, 48, 28);
+    var autoMarkerSymbolMedium = new PictureMarkerSymbol(imageMedium, 48, 28);
+    var autoMarkerSymbolLow = new PictureMarkerSymbol(imageLow, 48, 28);
 
     // Get token
     function getToken() {
@@ -157,7 +166,7 @@ $(document).ready(function(){
       var result = evt.addresses[0]
 
       if (result != null) {
-        var point = new esri.geometry.Point(result.location)
+        var point = new Point(result.location)
 
         stopSymbol = new SimpleMarkerSymbol().setStyle(SimpleMarkerSymbol.STYLE_CROSS).setSize(15);
         stopSymbol.outline.setWidth(3);
@@ -205,6 +214,7 @@ $(document).ready(function(){
           10
       ), new Color([r, g, b, 0.9]));
       pointsLayer.add(new Graphic(point, symbol));
+      map.centerAt(point);
     };
   
     // Route action
@@ -232,10 +242,16 @@ $(document).ready(function(){
     });
 
     function solveRoute(orderedArray) {
+      var origin;
       var stops = '';
       for (var index in orderedArray){
+        if (index == 0) {
+          origin = new Point(orderedArray[index].geometry.x, orderedArray[index].geometry.y);
+        }
         stops = stops + orderedArray[index].geometry.x + ',' + orderedArray[index].geometry.y + ';'; 
       }
+
+      map.centerAt(origin);
 
       $.get("http://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World/solve", {
         token: token,
@@ -249,9 +265,7 @@ $(document).ready(function(){
           lastRoute = response.routes.features[0];
           var polyline = new Polyline(lastRoute.geometry);
           routesLayer.add(new Graphic(polyline, routeSymbol));
-
-          // Llamada a recorrido de ruta
-          recorroRuta(0, polyline, polyline.spatialReference);
+          lastPolyline = polyline;
         }
         else {
           alert("Error generating route");
@@ -260,6 +274,13 @@ $(document).ready(function(){
       });
     };
 
+    $("#start-button").click(function startRoute(polyline) {
+      totalSteps = lastPolyline.paths[0].length - 1;
+      prepareRoute(lastPolyline, totalSteps);
+      startSimulation(0, lastPolyline, totalSteps);
+      $(".route-info").show();
+    });
+
     // Clear action
     $("#clear-button").click(function route() {
       $(".item").each(function(){
@@ -267,9 +288,11 @@ $(document).ready(function(){
       })
       pointsLayer.clear();
       routesLayer.clear();
+      carLayer.clear();
       places = [];
       placesCount = 0;
       lastRoute = null;
+      $(".route-info").hide();
     });
 
     // Save route action
@@ -319,6 +342,11 @@ $(document).ready(function(){
           if (response.features.length > 0) {
             var polyline = new Polyline(response.features[0].geometry);
             routesLayer.add(new Graphic(polyline, routeSymbol));
+            lastPolyline = polyline;
+
+            origin = new Point(polyline.paths[0][0][0], polyline.paths[0][0][1]);
+            map.centerAt(origin);
+
             $(".overlay").hide();
           }
           else {
@@ -334,113 +362,145 @@ $(document).ready(function(){
 
     $(".overlay").hide();
 
-    /* Movimiento del auto */
-    function mostrarAuto(velocidad, punto) {
-      /*$('#punto').text('');
-      $('#cordenadas').text('');
-      $('#poblacion').text('');
-      $('#estado').text('');*/
-      var imagen = "http://i.imgur.com/JVVvX3T.png";
-      if(velocidad == "Media") imagen = "http://i.imgur.com/UJoED65.png";
-      if(velocidad == "Alta") imagen = "http://i.imgur.com/c6fuPJp.png";
+    // Show car
+    function showCar(point) {
+      carLayer.clear();
 
-      var autoMarkerSymbol = new PictureMarkerSymbol(imagen, 48, 28);
-
-      if(window.autoGraphicLayer == null){
-        window.autoGraphicLayer = new GraphicsLayer();
-      } else {
-        window.autoGraphicLayer.clear();
+      if (speedValue == 1) {
+        carLayer.add(new Graphic(point, autoMarkerSymbolLow));
+      } 
+      else if (speedValue == 2) {
+        carLayer.add(new Graphic(point, autoMarkerSymbolMedium));
       }
-
-      console.log("punto: " + punto);
-      console.log("map: " + map.getLayersVisibleAtScale());
-
-      window.autoGraphicLayer.add(new Graphic(new Point(punto.x, punto.y), autoMarkerSymbol));
-      map.addLayer(window.autoGraphicLayer);
-
-      // $('#cordenadas').text(' X=' + window.puntos[i][0].x + ",  Y=" + window.puntos[i][0].y);
-      //window.last_state = window.current_state;
-      //window.current_state = window.puntos[i][1];
-      //window.index_point = i;
-      //mostrarBufferCounties(point);
+      else {
+        carLayer.add(new Graphic(point, autoMarkerSymbolHigh));
+      }
     } 
 
-  //muestra el buffer en el mapa
-  function mostrarBuffer(velocidad, punto) {
+    //muestra el buffer en el mapa
+    function mostrarBuffer(velocidad, punto) {
 
-    var color = new Color([0,153,0]); 
-    if(velocidad == "Media") color = new Color([255,204,0]);
-    if(velocidad == "Alta") color = new Color([255,0,0]);
+      var color = new Color([0,153,0]); 
+      if(velocidad == "Media") color = new Color([255,204,0]);
+      if(velocidad == "Alta") color = new Color([255,0,0]);
 
-    var translucido = color; translucido.a = 0.25;
+      var translucido = color; translucido.a = 0.25;
 
-    var relleno = new SimpleFillSymbol(
-      SimpleFillSymbol.STYLE_SOLID,
-      new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
-                          color, 
-                          2),
-      translucido);
+      var relleno = new SimpleFillSymbol(
+        SimpleFillSymbol.STYLE_SOLID,
+        new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                            color, 
+                            2),
+        translucido);
 
-    var circulo = new Circle(punto, {
-            radius: 100,
-            radiusUnit: esri.Units.MILES,
-            geodesic: true
-        });
+      var circulo = new Circle(punto, {
+              radius: 100,
+              radiusUnit: esri.Units.MILES,
+              geodesic: true
+          });
 
-    if(window.bufferGraphicLayer == null){
-      window.bufferGraphicLayer = new GraphicsLayer();
-    } else {
-      window.bufferGraphicLayer.clear();
+      if(window.bufferGraphicLayer == null){
+        window.bufferGraphicLayer = new GraphicsLayer();
+      } else {
+        window.bufferGraphicLayer.clear();
+      }
+
+      window.bufferGraphicLayer.add(new Graphic(circulo, relleno));
+      map.graphics.add(window.bufferGraphicLayer);
     }
 
-    window.bufferGraphicLayer.add(new Graphic(circulo, relleno));
-    map.graphics.add(window.bufferGraphicLayer);
-  }
+    var totalLength;
+    var initialTime;
+    var lastDistance;
+    var speed;
+    var actualDistance;
+    var speedUdated;
+    var steps;
 
-  function preparoCamino (camino, cantidadPasos) {
-    //console.log("preparoCamino " + cantidadPasos);
-    var largoTotal = 0;
-    for(var i = 0; i < cantidadPasos; i++){
-      largoTramo = esri.geometry.getLength(camino.getPoint(0, i), camino.getPoint(0, i+1));
-      //console.log("largoTramo " + largoTramo);
-      largoTotal = largoTotal + largoTramo;
+    function prepareRoute(route, totalSteps) {
+
+      totalLength = esri.geometry.geodesicLengths([route], esri.Units.KILOMETERS);
+      $("#distance-text").text(Math.round(totalLength) + " km")
+    
+      steps = [];
+      for(var i = 0; i < totalSteps; i++){
+        polyline = new Polyline([[route.getPoint(0, i).x, route.getPoint(0, i).y], [route.getPoint(0, i+1).x,route.getPoint(0, i+1).y]])
+        largoTramo = esri.geometry.geodesicLengths([polyline], esri.Units.KILOMETERS);
+        steps.push(largoTramo[0]);
+      }
+
+      // Restore variables
+      setTime($("#speed").val());
+      initialTime = null;
+      lastDistance = 0;
+      actualDistance = 0;
+      speedUdated = false;
     }
-    console.log("largoTotal " + largoTotal);
-    console.log("largoTotal2 " + esri.geometry.getLength(camino.getPoint(0, i), camino.getPoint(0, cantidadPasos-1)));
 
-    window.ponderacion = [];
-    for(var i = 0; i < cantidadPasos; i++){
-      largoTramo = esri.geometry.getLength(camino.getPoint(0, i), camino.getPoint(0, i+1));
-      window.ponderacion.push(largoTramo / largoTotal);
+    function startSimulation(step, polyline, totalSteps){
+
+      if (initialTime == null) {
+        initialTime = new Date();
+      }
+
+      if(step < totalSteps){
+        timeDiference = (new Date() - initialTime)/1000;
+        actualDistance = speed * timeDiference;
+
+        // Aproximate distance when speed is changed
+        while ((lastDistance > actualDistance) && step < totalSteps && speedUdated) {
+          lastDistance = lastDistance - steps[step];
+          step = step - 1;
+        }
+
+        speedUdated = false;
+
+        while ((lastDistance < actualDistance) && step < totalSteps) {
+          lastDistance = lastDistance + steps[step];
+          step = step + 1;
+        }
+
+        var point = new Point(polyline.getPoint(0, step).x, polyline.getPoint(0, step).y);
+
+        $("#coordenates-text").text(point.x + ", " + point.y);
+
+        showCar(point);
+        map.centerAt(point)
+        mostrarBuffer(window.velocidad, point);
+
+        setTimeout(function(){
+          startSimulation(step, polyline, totalSteps);
+        }, 200);
+      }
     }
 
-  }
+    $("#speed").change(function() {
+      if (tiempoTotal != null) {
+        timePorcentage = ((new Date() - initialTime)/1000) * 100 / tiempoTotal;
+        setTime($("#speed").val());
+        actualTime = new Date();
+        initialTime = actualTime.setSeconds(actualTime.getSeconds() - tiempoTotal * timePorcentage / 100);
+      }
+    });
 
-
-  function recorroRuta(paso, puntos, spatialReference){
-    window.tiempoTotal = 1000;
-    window.velocidad = "Baja";
-    var cantidadPasos = puntos.paths[0].length - 1;
-    console.log("paso: " + paso);
-    console.log("largo: " + cantidadPasos);
-    preparoCamino(puntos, cantidadPasos);
-    if(paso < cantidadPasos){
-      var origen = puntos.getPoint(0, paso);
-      var destino = puntos.getPoint(0, paso+1);
-      console.log("recorroRuta origen: " + origen.x + "." + origen.y);
-      console.log("recorroRuta destino: " + destino.x + "." + destino.y);
-      var puntoOrigen = new Point(origen.x, origen.y);
-
-      console.log("velocidad" + window.velocidad);
-      mostrarAuto(window.velocidad, puntoOrigen);
-      mostrarBuffer(window.velocidad, puntoOrigen);
-      //map.centerAt(puntoOrigen);
-      setTimeout(function(){
-        console.log("Timeout paso: " + paso);
-        recorroRuta(paso+1, puntos, spatialReference);
-      }, window.tiempoTotal * window.ponderacion[paso]);
+    function setTime(value) {
+      if (value == 1) {
+        tiempoTotal = 180;
+        speedValue = 1;
+      }
+      else if (value == 2) {
+        tiempoTotal = 60;
+        speedValue = 2;
+      }
+      else {
+        tiempoTotal = 15;
+        speedValue = 3;
+      }
+      speed = totalLength[0] / tiempoTotal;
+      $("#speed-text").text(Math.round(speed * 3600) + " km/h")
+      speedUdated = true;
     }
-  }
+
   });
     
   // drag places
