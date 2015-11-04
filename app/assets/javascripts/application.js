@@ -63,6 +63,12 @@ $(document).ready(function(){
       "esri/symbols/CartographicLineSymbol",
       "esri/Color",
       "esri/geometry/Polyline",
+      "esri/tasks/GeometryService",
+      "esri/tasks/Geoprocessor",
+      "esri/tasks/BufferParameters",
+      "esri/tasks/AreasAndLengthsParameters",
+      "esri/SpatialReference",
+      "esri/InfoTemplate",
       "dojo/number",
       "dojo/parser",
       "dojo/dom",
@@ -76,7 +82,8 @@ $(document).ready(function(){
       PictureMarkerSymbol, Circle, SimpleFillSymbol,
       Font, TextSymbol, Point, Extent,
       webMercatorUtils, arrayUtils, CartographicLineSymbol,
-      Color, Polyline, number, parser,
+      Color, Polyline, GeometryService, Geoprocessor, BufferParameters,
+      AreasAndLengthsParameters, SpatialReference, InfoTemplate, number, parser,
       dom, JSON, registry, GraphicsLayer, geodesicUtils
     ) 
   {
@@ -104,14 +111,19 @@ $(document).ready(function(){
     var pointsLayer = new GraphicsLayer();
     var routesLayer = new GraphicsLayer();
     var carLayer = new GraphicsLayer();
-
-
+    var bufferGraphicLayer = new GraphicsLayer();
+    var countiesGraphicLayer = new GraphicsLayer();
+          
+    map.addLayer(countiesGraphicLayer);                 
+    map.addLayer(bufferGraphicLayer);
     map.addLayer(pointsLayer);
     map.addLayer(routesLayer);
     map.addLayer(carLayer);
 
     var locator = new Locator("http://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer");  
-
+    var geometryService = new GeometryService("http://sampleserver5.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer");
+    //var geometryServiceIntersect = new GeometryService("http://sampleserver5.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer");  
+    var queryTaskCounties = new esri.tasks.QueryTask("http://services.arcgisonline.com/arcgis/rest/services/Demographics/USA_1990-2000_Population_Change/MapServer/3");
     var routeSymbol = new SimpleLineSymbol().setColor(new dojo.Color([0, 0, 255, 0.5])).setWidth(5);
 
     var speedValue = 1;
@@ -158,6 +170,13 @@ $(document).ready(function(){
           alert("You already have 10 places");
         }
         $("#location").val('');
+      }
+    });
+
+    $("#location").keyup(function(e){
+      var code = e.which;
+      if(code==13) {
+        $("#search-button").trigger("click");
       }
     });
     
@@ -275,10 +294,17 @@ $(document).ready(function(){
     };
 
     $("#start-button").click(function startRoute(polyline) {
-      totalSteps = lastPolyline.paths[0].length - 1;
-      prepareRoute(lastPolyline, totalSteps);
-      startSimulation(0, lastPolyline, totalSteps);
-      $(".route-info").show();
+      if(lastRoute != null) {
+        totalSteps = lastPolyline.paths[0].length - 1;
+        prepareRoute(lastPolyline, totalSteps);
+        startSimulation(0, lastPolyline, totalSteps);
+        $(".route-info").show();
+        bufferGraphicLayer.clear();
+        countiesGraphicLayer.clear();
+      } 
+      else {
+        alert("No route");
+      }
     });
 
     // Clear action
@@ -289,6 +315,8 @@ $(document).ready(function(){
       pointsLayer.clear();
       routesLayer.clear();
       carLayer.clear();
+      bufferGraphicLayer.clear();
+      countiesGraphicLayer.clear();
       places = [];
       placesCount = 0;
       lastRoute = null;
@@ -378,36 +406,6 @@ $(document).ready(function(){
     } 
 
     //muestra el buffer en el mapa
-    function mostrarBuffer(velocidad, punto) {
-
-      var color = new Color([0,153,0]); 
-      if(velocidad == "Media") color = new Color([255,204,0]);
-      if(velocidad == "Alta") color = new Color([255,0,0]);
-
-      var translucido = color; translucido.a = 0.25;
-
-      var relleno = new SimpleFillSymbol(
-        SimpleFillSymbol.STYLE_SOLID,
-        new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
-                            color, 
-                            2),
-        translucido);
-
-      var circulo = new Circle(punto, {
-              radius: 100,
-              radiusUnit: esri.Units.MILES,
-              geodesic: true
-          });
-
-      if(window.bufferGraphicLayer == null){
-        window.bufferGraphicLayer = new GraphicsLayer();
-      } else {
-        window.bufferGraphicLayer.clear();
-      }
-
-      window.bufferGraphicLayer.add(new Graphic(circulo, relleno));
-      map.graphics.add(window.bufferGraphicLayer);
-    }
 
     var totalLength;
     var initialTime;
@@ -416,6 +414,9 @@ $(document).ready(function(){
     var actualDistance;
     var speedUdated;
     var steps;
+    var showCount;
+    var arrivingCount;
+    var bufferPopulationSum;
 
     function prepareRoute(route, totalSteps) {
 
@@ -435,6 +436,9 @@ $(document).ready(function(){
       lastDistance = 0;
       actualDistance = 0;
       speedUdated = false;
+      showCount = 0;
+      arrivingCount = 0;
+      bufferPopulationSum = 0;
     }
 
     function startSimulation(step, polyline, totalSteps){
@@ -463,15 +467,127 @@ $(document).ready(function(){
         var point = new Point(polyline.getPoint(0, step).x, polyline.getPoint(0, step).y);
 
         $("#coordenates-text").text(point.x + ", " + point.y);
-
         showCar(point);
-        map.centerAt(point)
-        mostrarBuffer(window.velocidad, point);
+        map.centerAt(point);
+        
+        if (speedValue < 3) {
+          prepareBuffer(point, showCount);
+        }
+        else {
+          bufferGraphicLayer.clear();
+          countiesGraphicLayer.clear();
+        }
+
+        showCount = showCount+1;
 
         setTimeout(function(){
           startSimulation(step, polyline, totalSteps);
         }, 200);
       }
+    }
+
+    function prepareBuffer(point, step) {
+      var params = new BufferParameters();
+      params.geometries = [point];
+      params.distances = [50];
+      params.outSpatialReference = map.spatialReference;
+      params.unit = GeometryService.UNIT_KILOMETER;
+      geometryService.buffer(params, callbackBuffer(step));
+    }
+
+    function callbackBuffer(step) {
+      return (function (bufferedGeometries) {
+                var symbol = new SimpleFillSymbol(
+                  SimpleFillSymbol.STYLE_SOLID,
+                  new SimpleLineSymbol(
+                    SimpleLineSymbol.STYLE_SOLID,
+                    new Color([255,0,0,0.65]), 2
+                  ),
+                  new Color([255,0,0,0.35])
+                );
+
+                bufferGraphicLayer.clear();
+                var bufferGraphic = new Graphic(bufferedGeometries[0], symbol);
+                bufferGraphicLayer.add(bufferGraphic);
+                if ((step % 10)==0){
+                  showCounties(bufferedGeometries[0]);
+                }
+              }
+        );
+    }
+
+    function showCounties(buffer){
+      // Query para obtener condados
+      query = new esri.tasks.Query();
+      query.returnGeometry = true;
+      query.outFields = ["*"];
+      query.geometry = buffer;
+      query.outSpatialReference = map.spatialReference;
+      query.spatialRelationship = esri.tasks.Query.SPATIAL_REL_INTERSECTS;
+      queryTaskCounties.execute(query, callbackCounties(buffer));    
+    }
+
+    function isInArray(value, array) {
+      return array.indexOf(value) > -1;
+    }
+
+    function callbackCounties(buffer){
+      return (function (featureSet){
+        firstGraphic = featureSet.features;
+        var symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new dojo.Color([0,0,0]), 1), new dojo.Color([218,165,32,0.60]));
+        
+        //Clear the layer
+        countiesGraphicLayer.clear();
+
+        //Iterate over Counties polygons
+        var amountCounties = firstGraphic.length;
+        for (var i =0; i < amountCounties; i++){
+          firstGraphic[i].setSymbol(symbol);
+          var geoList = [firstGraphic[i].geometry];
+          if(!isInArray(firstGraphic[i], countiesGraphicLayer.graphics)) {
+            countiesGraphicLayer.add(firstGraphic[i]);
+          }
+
+          geometryService.intersect(geoList, buffer, callbackIntercept(firstGraphic[i], amountCounties));
+        }
+      });
+    }
+
+    function callbackIntercept(graphic, amountCounties){
+      return (function(intersections) {
+        var intersection = intersections[0];
+        var areasAndLengthParams = new esri.tasks.AreasAndLengthsParameters();
+        areasAndLengthParams.lengthUnit = esri.tasks.GeometryService.UNIT_METER;
+        areasAndLengthParams.areaUnit = esri.tasks.GeometryService.UNIT_SQUARE_METERS;
+        areasAndLengthParams.polygons = [intersection];
+        geometryService.areasAndLengths(areasAndLengthParams, callbackAreas(graphic, amountCounties));
+      });
+    }
+
+    function callbackAreas(graphic, amountCounties){
+      return (function(areasList){
+        var areaInterseccionSquareMeters = areasList.areas[0];
+        var areaCountySquareMeters = graphic.attributes.LANDAREA * 2589988.11;
+
+        arrivingCount = arrivingCount + 1;
+        bufferPopulationSum = bufferPopulationSum + ((areaInterseccionSquareMeters / areaCountySquareMeters)*graphic.attributes.TOTPOP_CY);
+        if (arrivingCount >= amountCounties){
+          bufferPopulationSum = Math.round(bufferPopulationSum).toFixed(2);
+          console.log("poblacion buffer " + bufferPopulationSum);
+          bufferPopulationSum = 0;
+          amountCounties = 0;
+          arrivingCount = 0;
+        }
+
+        var infoTemplate = new InfoTemplate(graphic.attributes.NAME, 
+                                "State: " + graphic.attributes.ST_ABBREV +
+                                "<br>Population: " + graphic.attributes.TOTPOP_CY +
+                                "<br>Land Area: " + Math.round(areaCountySquareMeters).toFixed(2) + "mt/2" +
+                                "<br>Interception percentage: " + Math.round((areaInterseccionSquareMeters / areaCountySquareMeters)*100).toFixed(2) + "%" +
+                                "<br>Weighted Population: " + Math.round((areaInterseccionSquareMeters / areaCountySquareMeters)*graphic.attributes.TOTPOP_CY).toFixed(2));
+        graphic.setInfoTemplate(infoTemplate);
+        countiesGraphicLayer.add(graphic);
+      });
     }
 
     $("#speed").change(function() {
