@@ -114,6 +114,11 @@ input:focus {
   border: 2px solid red !important;
 }
 
+.green-button {
+  background-color: green !important;
+  border: 2px solid green !important;
+}
+
 .map-footer {
   padding-top: 10px;
 }

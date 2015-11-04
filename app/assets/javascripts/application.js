@@ -131,9 +131,9 @@ $(document).ready(function(){
     var imageMedium = "http://i.imgur.com/UJoED65.png";
     var imageLow = "http://i.imgur.com/JVVvX3T.png";
 
-    var autoMarkerSymbolHigh = new PictureMarkerSymbol(imageHigh, 48, 28);
-    var autoMarkerSymbolMedium = new PictureMarkerSymbol(imageMedium, 48, 28);
-    var autoMarkerSymbolLow = new PictureMarkerSymbol(imageLow, 48, 28);
+    var autoMarkerSymbolHigh = new PictureMarkerSymbol(imageHigh, 57, 34);
+    var autoMarkerSymbolMedium = new PictureMarkerSymbol(imageMedium, 57, 34);
+    var autoMarkerSymbolLow = new PictureMarkerSymbol(imageLow, 57, 34);
 
     // Get token
     function getToken() {
