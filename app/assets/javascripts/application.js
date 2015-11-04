@@ -394,7 +394,7 @@ $(document).ready(function(){
     function showCar(point) {
       carLayer.clear();
 
-      if (speedValue == 1) {
+      if (speedValue == 1 || speedValue == 0) {
         carLayer.add(new Graphic(point, autoMarkerSymbolLow));
       } 
       else if (speedValue == 2) {
@@ -417,6 +417,7 @@ $(document).ready(function(){
     var showCount;
     var arrivingCount;
     var bufferPopulationSum;
+    var totalTime;
 
     function prepareRoute(route, totalSteps) {
 
@@ -470,12 +471,13 @@ $(document).ready(function(){
         showCar(point);
         map.centerAt(point);
         
-        if (speedValue < 3) {
+        if (speedValue < 2) {
           prepareBuffer(point, showCount);
         }
         else {
           bufferGraphicLayer.clear();
           countiesGraphicLayer.clear();
+          $("#population-text").text("");
         }
 
         showCount = showCount+1;
@@ -495,9 +497,7 @@ $(document).ready(function(){
       geometryService.buffer(params, callbackBuffer(step));
     }
 
-    function callbackBuffer(step) {
-      return (function (bufferedGeometries) {
-                var symbol = new SimpleFillSymbol(
+    var bufferSymbol = new SimpleFillSymbol(
                   SimpleFillSymbol.STYLE_SOLID,
                   new SimpleLineSymbol(
                     SimpleLineSymbol.STYLE_SOLID,
@@ -506,8 +506,10 @@ $(document).ready(function(){
                   new Color([255,0,0,0.35])
                 );
 
+    function callbackBuffer(step) {
+      return (function (bufferedGeometries) {
                 bufferGraphicLayer.clear();
-                var bufferGraphic = new Graphic(bufferedGeometries[0], symbol);
+                var bufferGraphic = new Graphic(bufferedGeometries[0], bufferSymbol);
                 bufferGraphicLayer.add(bufferGraphic);
                 if ((step % 10)==0){
                   showCounties(bufferedGeometries[0]);
@@ -531,10 +533,11 @@ $(document).ready(function(){
       return array.indexOf(value) > -1;
     }
 
+    var countiesSymbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new dojo.Color([0,0,0]), 1), new dojo.Color([218,165,32,0.60]));
+
     function callbackCounties(buffer){
       return (function (featureSet){
         firstGraphic = featureSet.features;
-        var symbol = new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new dojo.Color([0,0,0]), 1), new dojo.Color([218,165,32,0.60]));
         
         //Clear the layer
         countiesGraphicLayer.clear();
@@ -542,7 +545,7 @@ $(document).ready(function(){
         //Iterate over Counties polygons
         var amountCounties = firstGraphic.length;
         for (var i =0; i < amountCounties; i++){
-          firstGraphic[i].setSymbol(symbol);
+          firstGraphic[i].setSymbol(countiesSymbol);
           var geoList = [firstGraphic[i].geometry];
           if(!isInArray(firstGraphic[i], countiesGraphicLayer.graphics)) {
             countiesGraphicLayer.add(firstGraphic[i]);
@@ -572,8 +575,7 @@ $(document).ready(function(){
         arrivingCount = arrivingCount + 1;
         bufferPopulationSum = bufferPopulationSum + ((areaInterseccionSquareMeters / areaCountySquareMeters)*graphic.attributes.TOTPOP_CY);
         if (arrivingCount >= amountCounties){
-          bufferPopulationSum = Math.round(bufferPopulationSum).toFixed(2);
-          console.log("poblacion buffer " + bufferPopulationSum);
+          $("#population-text").text(Math.round(bufferPopulationSum) + " inh");
           bufferPopulationSum = 0;
           amountCounties = 0;
           arrivingCount = 0;
@@ -591,28 +593,34 @@ $(document).ready(function(){
     }
 
     $("#speed").change(function() {
-      if (tiempoTotal != null) {
-        timePorcentage = ((new Date() - initialTime)/1000) * 100 / tiempoTotal;
+      if (totalTime != null) {
+        timePorcentage = ((new Date() - initialTime)/1000) * 100 / totalTime;
         setTime($("#speed").val());
         actualTime = new Date();
-        initialTime = actualTime.setSeconds(actualTime.getSeconds() - tiempoTotal * timePorcentage / 100);
+        initialTime = actualTime.setSeconds(actualTime.getSeconds() - totalTime * timePorcentage / 100);
       }
     });
 
     function setTime(value) {
-      if (value == 1) {
-        tiempoTotal = 180;
+      if (value == 0) {
+        totalTime = 450;
+        speedValue = 0;
+      }
+      else if (value == 1) {
+        totalTime = 180;
         speedValue = 1;
       }
       else if (value == 2) {
-        tiempoTotal = 60;
+        totalTime = 60;
         speedValue = 2;
+        $("#population-text").text("");
       }
       else {
-        tiempoTotal = 15;
+        totalTime = 15;
         speedValue = 3;
+        $("#population-text").text("");
       }
-      speed = totalLength[0] / tiempoTotal;
+      speed = totalLength[0] / totalTime;
       $("#speed-text").text(Math.round(speed * 3600) + " km/h")
       speedUdated = true;
     }

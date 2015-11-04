@@ -150,7 +150,7 @@ select:hover {
 }
 
 .route-info {
-  height: 130px;
+  height: 160px;
   width: 175px;
   opacity:0.8;
   background-color: black;
@@ -164,7 +164,7 @@ select:hover {
 .route-info-text {
   width: 100%;
   margin-top: 7px;
-  padding-left: 15px;
+  padding-left: 12px;
 }
 
 @media (max-width: 991px) {
