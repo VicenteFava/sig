@@ -22,7 +22,10 @@
             Distance: <span id="distance-text">0 km/h</span>
           </div>
           <div class="route-info-text">
-            Coordenates: <span id="coordenates-text"></span>
+            Coordenates: <span id="coordenates-text">0 , 0</span>
+          </div>
+          <div class="route-info-text">
+            Population: <span id="population-text"></span>
           </div>
         </div>
       </div>
@@ -49,14 +52,14 @@
         </div>
       </div>
       <div class="row item-footer">
-        <div class="col-md-4 col-xs-4 place-button-div">
-           <%= select_tag "speed", options_for_select([["Baja - 3 min", "1"], ["Media - 1 min", "2"], ["Alta - 15 seg", "3"]]), class: "map-select" %>
-        </div>
         <div class="col-md-4 col-xs-4 clear-button-div place-button-div">
           <%= button_tag "Route", class: "btn btn-primary map-button", id: "route-button" %>
         </div>
+        <div class="col-md-4 col-xs-4 place-button-div">
+           <%= select_tag "speed", options_for_select([["Muy Baja - 7,5 min", "0"], ["Baja - 3 min", "1"], ["Media - 1 min", "2"], ["Alta - 15 seg", "3"]], "1"), class: "map-select" %>
+        </div>
         <div class="col-md-4 col-xs-4 clear-button-div place-button-div">
-          <%= button_tag "Start", class: "btn btn-primary map-button", id: "start-button" %>
+          <%= button_tag "Start", class: "btn btn-primary map-button green-button", id: "start-button" %>
         </div>
       </div>
     </div>
