@@ -42,29 +42,19 @@ $(document).ready(function(){
   var target = document.getElementsByClassName('overlay')[0];
   var spinner = new Spinner(opts).spin(target);
 
-  require([ "esri/urlUtils", 
+  require([
       "esri/map",
-      "esri/tasks/RouteTask",
-      "esri/tasks/RouteParameters",
-      "esri/tasks/FeatureSet", 
       "esri/tasks/locator", 
       "esri/graphic",
       "esri/symbols/SimpleLineSymbol",
       "esri/symbols/SimpleMarkerSymbol",
       "esri/symbols/PictureMarkerSymbol",
-      "esri/geometry/Circle", 
       "esri/symbols/SimpleFillSymbol",
-      "esri/symbols/Font",
-      "esri/symbols/TextSymbol",
       "esri/geometry/Point",
-      "esri/geometry/Extent",
-      "esri/geometry/webMercatorUtils",
       "dojo/_base/array",
-      "esri/symbols/CartographicLineSymbol",
       "esri/Color",
       "esri/geometry/Polyline",
       "esri/tasks/GeometryService",
-      "esri/tasks/Geoprocessor",
       "esri/tasks/BufferParameters",
       "esri/tasks/AreasAndLengthsParameters",
       "esri/SpatialReference",
@@ -74,24 +64,15 @@ $(document).ready(function(){
       "dojo/dom",
       "dojo/json",
       "dijit/registry",
-      "esri/layers/GraphicsLayer",
-      "esri/geometry/geodesicUtils"
-    ], function( urlUtils,
-      Map, RouteTask, RouteParameters, FeatureSet, Locator, 
-      Graphic, SimpleLineSymbol, SimpleMarkerSymbol, 
-      PictureMarkerSymbol, Circle, SimpleFillSymbol,
-      Font, TextSymbol, Point, Extent,
-      webMercatorUtils, arrayUtils, CartographicLineSymbol,
-      Color, Polyline, GeometryService, Geoprocessor, BufferParameters,
-      AreasAndLengthsParameters, SpatialReference, InfoTemplate, number, parser,
-      dom, JSON, registry, GraphicsLayer, geodesicUtils
+      "esri/layers/GraphicsLayer"
+    ], function(
+      Map, Locator, Graphic, SimpleLineSymbol, SimpleMarkerSymbol, 
+      PictureMarkerSymbol, SimpleFillSymbol, Point, arrayUtils,
+      Color, Polyline, GeometryService, BufferParameters,
+      AreasAndLengthsParameters, SpatialReference, InfoTemplate, 
+      number, parser, dom, JSON, registry, GraphicsLayer
     ) 
   {
-
-    // urlUtils.addProxyRule({
-    //   urlPrefix: "route.arcgis.com",  
-    //   proxyUrl: "http://localhost:3000/proxy"
-    // });
 
     var token;
     var lastRoute;
