@@ -275,7 +275,7 @@ $(document).ready(function(){
     };
 
     $("#start-button").click(function startRoute(polyline) {
-      if(lastRoute != null) {
+      if(lastPolyline != null) {
         totalSteps = lastPolyline.paths[0].length - 1;
         prepareRoute(lastPolyline, totalSteps);
         startSimulation(0, lastPolyline, totalSteps);
